@@ -1,162 +1,122 @@
 <?php
 namespace App\Models;
 
-use PDO;
-
-class Student extends BaseModel
+class Student
 {
     public function search(array $filters, int $limit, int $offset): array
     {
-        $sql = 'SELECT student_id, fullname, course, year, section, email FROM students';
-        [$where, $params] = $this->buildFilterQuery($filters);
-
-        if ($where !== '') {
-            $sql .= ' WHERE ' . $where;
-        }
-
-        $sql .= ' ORDER BY fullname ASC LIMIT :limit OFFSET :offset';
-        $stmt = $this->db->prepare($sql);
-
-        foreach ($params as $key => $value) {
-            $stmt->bindValue($key, $value);
-        }
-
-        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
-        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-        $stmt->execute();
-
-        return $stmt->fetchAll() ?: [];
+        $students = $this->applyFilters(MockStorage::getStudents(), $filters);
+        usort($students, static fn($a, $b) => strcasecmp($a['fullname'], $b['fullname']));
+        return array_slice($students, $offset, $limit);
     }
 
     public function count(array $filters): int
     {
-        $sql = 'SELECT COUNT(*) AS total FROM students';
-        [$where, $params] = $this->buildFilterQuery($filters);
-
-        if ($where !== '') {
-            $sql .= ' WHERE ' . $where;
-        }
-
-        $stmt = $this->db->prepare($sql);
-        foreach ($params as $key => $value) {
-            $stmt->bindValue($key, $value);
-        }
-        $stmt->execute();
-
-        $row = $stmt->fetch();
-        return (int) ($row['total'] ?? 0);
+        return count($this->applyFilters(MockStorage::getStudents(), $filters));
     }
 
     public function create(array $data): void
     {
-        $stmt = $this->db->prepare('INSERT INTO students (fullname, course, year, section, email)
-            VALUES (:fullname, :course, :year, :section, :email)');
-
-        $stmt->execute([
+        $students = MockStorage::getStudents();
+        $students[] = [
+            'student_id' => MockStorage::nextId('students'),
             'fullname' => $data['fullname'],
             'course' => $data['course'],
             'year' => $data['year'],
             'section' => $data['section'],
             'email' => $data['email'],
-        ]);
+        ];
+        MockStorage::setStudents($students);
     }
 
     public function update(int $studentId, array $data): void
     {
-        $stmt = $this->db->prepare('UPDATE students
-            SET fullname = :fullname,
-                course = :course,
-                year = :year,
-                section = :section,
-                email = :email,
-                updated_at = NOW()
-            WHERE student_id = :student_id');
-
-        $stmt->execute([
-            'fullname' => $data['fullname'],
-            'course' => $data['course'],
-            'year' => $data['year'],
-            'section' => $data['section'],
-            'email' => $data['email'],
-            'student_id' => $studentId,
-        ]);
+        $students = MockStorage::getStudents();
+        foreach ($students as &$student) {
+            if ($student['student_id'] === $studentId) {
+                $student['fullname'] = $data['fullname'];
+                $student['course'] = $data['course'];
+                $student['year'] = $data['year'];
+                $student['section'] = $data['section'];
+                $student['email'] = $data['email'];
+                break;
+            }
+        }
+        MockStorage::setStudents($students);
     }
 
     public function delete(int $studentId): void
     {
-        $stmt = $this->db->prepare('DELETE FROM students WHERE student_id = :student_id');
-        $stmt->execute(['student_id' => $studentId]);
+        $students = array_filter(MockStorage::getStudents(), static fn($student) => $student['student_id'] !== $studentId);
+        MockStorage::setStudents($students);
     }
 
     public function find(int $studentId): ?array
     {
-        $stmt = $this->db->prepare('SELECT student_id, fullname, course, year, section, email FROM students WHERE student_id = :student_id');
-        $stmt->execute(['student_id' => $studentId]);
-        $row = $stmt->fetch();
-
-        return $row ?: null;
+        foreach (MockStorage::getStudents() as $student) {
+            if ($student['student_id'] === $studentId) {
+                return $student;
+            }
+        }
+        return null;
     }
 
     public function existsEmail(string $email, ?int $excludeId = null): bool
     {
-        $sql = 'SELECT 1 FROM students WHERE email = :email';
-        if ($excludeId !== null) {
-            $sql .= ' AND student_id != :student_id';
+        foreach (MockStorage::getStudents() as $student) {
+            if (strcasecmp($student['email'], $email) === 0 && $student['student_id'] !== $excludeId) {
+                return true;
+            }
         }
-
-        $stmt = $this->db->prepare($sql);
-        $stmt->bindValue('email', $email);
-        if ($excludeId !== null) {
-            $stmt->bindValue('student_id', $excludeId, PDO::PARAM_INT);
-        }
-        $stmt->execute();
-
-        return (bool) $stmt->fetchColumn();
+        return false;
     }
 
     public function distinctCourses(): array
     {
-        $stmt = $this->db->query('SELECT DISTINCT course FROM students WHERE course != "" ORDER BY course ASC');
-        return array_column($stmt->fetchAll() ?: [], 'course');
+        return $this->distinctValues(MockStorage::getStudents(), 'course');
     }
 
     public function distinctYears(): array
     {
-        $stmt = $this->db->query('SELECT DISTINCT year FROM students WHERE year != "" ORDER BY year ASC');
-        return array_column($stmt->fetchAll() ?: [], 'year');
+        return $this->distinctValues(MockStorage::getStudents(), 'year');
     }
 
     public function distinctSections(): array
     {
-        $stmt = $this->db->query('SELECT DISTINCT section FROM students WHERE section != "" ORDER BY section ASC');
-        return array_column($stmt->fetchAll() ?: [], 'section');
+        return $this->distinctValues(MockStorage::getStudents(), 'section');
     }
 
-    private function buildFilterQuery(array $filters): array
+    private function applyFilters(array $students, array $filters): array
     {
-        $clauses = [];
-        $params = [];
+        return array_values(array_filter($students, static function ($student) use ($filters) {
+            if (!empty($filters['query'])) {
+                $query = mb_strtolower($filters['query']);
+                $text = mb_strtolower($student['fullname'] . ' ' . $student['email'] . ' ' . $student['course'] . ' ' . $student['section']);
+                if (!str_contains($text, $query)) {
+                    return false;
+                }
+            }
 
-        if (!empty($filters['query'])) {
-            $clauses[] = '(fullname LIKE :query OR email LIKE :query OR course LIKE :query OR section LIKE :query)';
-            $params['query'] = '%' . $filters['query'] . '%';
-        }
+            if (!empty($filters['course']) && strcasecmp($student['course'], $filters['course']) !== 0) {
+                return false;
+            }
 
-        if (!empty($filters['course'])) {
-            $clauses[] = 'course = :course';
-            $params['course'] = $filters['course'];
-        }
+            if (!empty($filters['year']) && strcasecmp($student['year'], $filters['year']) !== 0) {
+                return false;
+            }
 
-        if (!empty($filters['year'])) {
-            $clauses[] = 'year = :year';
-            $params['year'] = $filters['year'];
-        }
+            if (!empty($filters['section']) && strcasecmp($student['section'], $filters['section']) !== 0) {
+                return false;
+            }
 
-        if (!empty($filters['section'])) {
-            $clauses[] = 'section = :section';
-            $params['section'] = $filters['section'];
-        }
+            return true;
+        }));
+    }
 
-        return [implode(' AND ', $clauses), $params];
+    private function distinctValues(array $items, string $key): array
+    {
+        $values = array_unique(array_filter(array_map(static fn($item) => $item[$key] ?? '', $items), static fn($value) => $value !== ''));
+        sort($values, SORT_NATURAL | SORT_FLAG_CASE);
+        return array_values($values);
     }
 }

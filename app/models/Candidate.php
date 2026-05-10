@@ -1,69 +1,74 @@
 <?php
 namespace App\Models;
 
-class Candidate extends BaseModel
+class Candidate
 {
     public function all(): array
     {
-        $sql = 'SELECT c.candidate_id, c.fullname, c.photo, c.motto, c.position_id, c.party_id,
-                       p.position_name, l.party_name
-                FROM candidates AS c
-                LEFT JOIN positions AS p ON c.position_id = p.position_id
-                LEFT JOIN partylists AS l ON c.party_id = l.party_id
-                ORDER BY c.created_at DESC';
+        $candidates = MockStorage::getCandidates();
+        $positions = MockStorage::getPositions();
+        $parties = MockStorage::getPartyLists();
 
-        $stmt = $this->db->query($sql);
-        return $stmt->fetchAll() ?: [];
+        usort($candidates, static fn($a, $b) => strcmp($b['created_at'] ?? '', $a['created_at'] ?? ''));
+
+        return array_map(static function ($candidate) use ($positions, $parties) {
+            return [
+                'candidate_id' => $candidate['candidate_id'],
+                'fullname' => $candidate['fullname'],
+                'photo' => $candidate['photo'] ?? '',
+                'motto' => $candidate['motto'] ?? '',
+                'position_id' => $candidate['position_id'] ?? null,
+                'party_id' => $candidate['party_id'] ?? null,
+                'position_name' => $positions[array_search($candidate['position_id'], array_column($positions, 'position_id'))]['position_name'] ?? 'Unassigned',
+                'party_name' => $parties[array_search($candidate['party_id'], array_column($parties, 'party_id'))]['party_name'] ?? 'Unassigned',
+            ];
+        }, $candidates);
     }
 
     public function find(int $candidateId): ?array
     {
-        $stmt = $this->db->prepare('SELECT * FROM candidates WHERE candidate_id = :candidate_id');
-        $stmt->execute(['candidate_id' => $candidateId]);
-        $row = $stmt->fetch();
-        return $row ?: null;
+        foreach (MockStorage::getCandidates() as $candidate) {
+            if ($candidate['candidate_id'] === $candidateId) {
+                return $candidate;
+            }
+        }
+        return null;
     }
 
     public function create(array $data): void
     {
-        $sql = 'INSERT INTO candidates (fullname, photo, motto, position_id, party_id)
-                VALUES (:fullname, :photo, :motto, :position_id, :party_id)';
-
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute([
+        $candidates = MockStorage::getCandidates();
+        $candidates[] = [
+            'candidate_id' => MockStorage::nextId('candidates'),
             'fullname' => $data['fullname'],
-            'photo' => $data['photo'],
-            'motto' => $data['motto'],
-            'position_id' => $data['position_id'],
-            'party_id' => $data['party_id'],
-        ]);
+            'photo' => $data['photo'] ?? '',
+            'motto' => $data['motto'] ?? '',
+            'position_id' => $data['position_id'] ?? null,
+            'party_id' => $data['party_id'] ?? null,
+            'created_at' => date('Y-m-d H:i:s'),
+        ];
+        MockStorage::setCandidates($candidates);
     }
 
     public function update(int $candidateId, array $data): void
     {
-        $sql = 'UPDATE candidates
-                SET fullname = :fullname,
-                    photo = :photo,
-                    motto = :motto,
-                    position_id = :position_id,
-                    party_id = :party_id,
-                    updated_at = NOW()
-                WHERE candidate_id = :candidate_id';
-
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute([
-            'fullname' => $data['fullname'],
-            'photo' => $data['photo'],
-            'motto' => $data['motto'],
-            'position_id' => $data['position_id'],
-            'party_id' => $data['party_id'],
-            'candidate_id' => $candidateId,
-        ]);
+        $candidates = MockStorage::getCandidates();
+        foreach ($candidates as &$candidate) {
+            if ($candidate['candidate_id'] === $candidateId) {
+                $candidate['fullname'] = $data['fullname'];
+                $candidate['photo'] = $data['photo'] ?? $candidate['photo'] ?? '';
+                $candidate['motto'] = $data['motto'] ?? '';
+                $candidate['position_id'] = $data['position_id'] ?? null;
+                $candidate['party_id'] = $data['party_id'] ?? null;
+                break;
+            }
+        }
+        MockStorage::setCandidates($candidates);
     }
 
     public function delete(int $candidateId): void
     {
-        $stmt = $this->db->prepare('DELETE FROM candidates WHERE candidate_id = :candidate_id');
-        $stmt->execute(['candidate_id' => $candidateId]);
+        $candidates = array_filter(MockStorage::getCandidates(), static fn($item) => $item['candidate_id'] !== $candidateId);
+        MockStorage::setCandidates($candidates);
     }
 }

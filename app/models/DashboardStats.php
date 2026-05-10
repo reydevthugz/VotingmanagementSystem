@@ -1,14 +1,14 @@
 <?php
 namespace App\Models;
 
-class DashboardStats extends BaseModel
+class DashboardStats
 {
     public function summary(): array
     {
         return [
-            'total_voters' => $this->count('students'),
-            'total_candidates' => $this->count('candidates'),
-            'total_votes_cast' => $this->count('votes'),
+            'total_voters' => $this->countStudents(),
+            'total_candidates' => $this->countCandidates(),
+            'total_votes_cast' => $this->countVotes(),
             'active_election_status' => $this->activeElectionStatus(),
         ];
     }
@@ -16,43 +16,48 @@ class DashboardStats extends BaseModel
     public function votesTrend(int $days = 7): array
     {
         $days = max(1, min($days, 31));
-        $sql = "SELECT DATE(voted_at) AS vote_date, COUNT(*) AS total
-                FROM votes
-                WHERE voted_at >= DATE_SUB(CURDATE(), INTERVAL :days DAY)
-                GROUP BY DATE(voted_at)
-                ORDER BY vote_date ASC";
-
-        $stmt = $this->db->prepare($sql);
-        $stmt->bindValue(':days', $days, \PDO::PARAM_INT);
-        $stmt->execute();
-        $rows = $stmt->fetchAll() ?: [];
+        $cutoff = strtotime(sprintf('-%d days', $days));
+        $votes = array_filter(MockStorage::getVotes(), static fn($vote) => strtotime($vote['voted_at']) >= $cutoff);
 
         $series = [];
-        foreach ($rows as $row) {
-            $series[] = [
-                'date' => $row['vote_date'],
-                'total' => (int) $row['total'],
-            ];
+        for ($i = $days - 1; $i >= 0; $i--) {
+            $date = date('Y-m-d', strtotime(sprintf('-%d days', $i)));
+            $series[$date] = 0;
         }
 
-        return $series;
+        foreach ($votes as $vote) {
+            $date = date('Y-m-d', strtotime($vote['voted_at']));
+            if (isset($series[$date])) {
+                $series[$date]++;
+            }
+        }
+
+        return array_map(static fn($date, $total) => ['date' => $date, 'total' => $total], array_keys($series), $series);
     }
 
-    private function count(string $table): int
+    private function countStudents(): int
     {
-        $stmt = $this->db->query("SELECT COUNT(*) AS total FROM {$table}");
-        $row = $stmt->fetch();
-        return (int) ($row['total'] ?? 0);
+        return count(MockStorage::getStudents());
+    }
+
+    private function countCandidates(): int
+    {
+        return count(MockStorage::getCandidates());
+    }
+
+    private function countVotes(): int
+    {
+        return count(MockStorage::getVotes());
     }
 
     private function activeElectionStatus(): string
     {
-        $sql = "SELECT status
-                FROM elections
-                ORDER BY (status = 'active') DESC, start_date DESC
-                LIMIT 1";
-        $stmt = $this->db->query($sql);
-        $row = $stmt->fetch();
-        return $row['status'] ?? 'inactive';
+        $elections = array_filter(MockStorage::getElections(), static fn($election) => $election['status'] === 'active');
+        if (empty($elections)) {
+            return 'inactive';
+        }
+
+        usort($elections, static fn($a, $b) => strcmp($b['start_date'], $a['start_date']));
+        return $elections[0]['status'] ?? 'inactive';
     }
 }

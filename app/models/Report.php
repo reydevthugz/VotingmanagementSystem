@@ -1,66 +1,79 @@
 <?php
 namespace App\Models;
 
-use PDO;
-
-class Report extends BaseModel
+class Report
 {
     public function elections(): array
     {
-        $stmt = $this->db->query('SELECT election_id, title, status FROM elections ORDER BY start_date DESC');
-        return $stmt->fetchAll() ?: [];
+        $elections = MockStorage::getElections();
+        usort($elections, static fn($a, $b) => strcmp($b['start_date'], $a['start_date']));
+        return array_map(static fn($election) => [
+            'election_id' => $election['election_id'],
+            'title' => $election['title'],
+            'status' => $election['status'],
+        ], $elections);
     }
 
     public function electionById(int $electionId): ?array
     {
-        $stmt = $this->db->prepare('SELECT election_id, title, status FROM elections WHERE election_id = :election_id');
-        $stmt->execute(['election_id' => $electionId]);
-        $row = $stmt->fetch();
-        return $row ?: null;
+        foreach (MockStorage::getElections() as $election) {
+            if ($election['election_id'] === $electionId) {
+                return $election;
+            }
+        }
+        return null;
     }
 
     public function totalVotes(int $electionId): int
     {
-        $stmt = $this->db->prepare('SELECT COUNT(*) AS total FROM votes WHERE election_id = :election_id');
-        $stmt->execute(['election_id' => $electionId]);
-        $row = $stmt->fetch();
-        return (int) ($row['total'] ?? 0);
+        return count(array_filter(MockStorage::getVotes(), static fn($vote) => $vote['election_id'] === $electionId));
     }
 
     public function totalCandidates(int $electionId): int
     {
-        $stmt = $this->db->prepare('SELECT COUNT(DISTINCT candidate_id) AS total FROM candidates');
-        $stmt->execute();
-        $row = $stmt->fetch();
-        return (int) ($row['total'] ?? 0);
+        return count(MockStorage::getCandidates());
     }
 
     public function totalPositions(int $electionId): int
     {
-        $stmt = $this->db->query('SELECT COUNT(*) AS total FROM positions');
-        $row = $stmt->fetch();
-        return (int) ($row['total'] ?? 0);
+        return count(MockStorage::getPositions());
     }
 
     public function candidateResults(int $electionId): array
     {
-        $sql = 'SELECT p.position_id,
-                       p.position_name,
-                       c.candidate_id,
-                       c.fullname AS candidate_name,
-                       c.photo,
-                       c.motto,
-                       l.party_name,
-                       COUNT(v.vote_id) AS votes
-                FROM positions AS p
-                LEFT JOIN candidates AS c ON c.position_id = p.position_id
-                LEFT JOIN partylists AS l ON c.party_id = l.party_id
-                LEFT JOIN votes AS v ON v.candidate_id = c.candidate_id AND v.election_id = :election_id
-                GROUP BY p.position_id, p.position_name, c.candidate_id, c.fullname, c.photo, c.motto, l.party_name
-                ORDER BY p.position_name ASC, votes DESC, c.fullname ASC';
+        $positions = MockStorage::getPositions();
+        $candidates = MockStorage::getCandidates();
+        $parties = MockStorage::getPartyLists();
+        $votes = MockStorage::getVotes();
 
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute(['election_id' => $electionId]);
-        return $stmt->fetchAll() ?: [];
+        $results = [];
+        foreach ($positions as $position) {
+            foreach ($candidates as $candidate) {
+                if ($candidate['position_id'] !== $position['position_id']) {
+                    continue;
+                }
+
+                $votesCount = 0;
+                foreach ($votes as $vote) {
+                    if ($vote['election_id'] === $electionId && $vote['candidate_id'] === $candidate['candidate_id']) {
+                        $votesCount++;
+                    }
+                }
+
+                $results[] = [
+                    'position_id' => $position['position_id'],
+                    'position_name' => $position['position_name'],
+                    'candidate_id' => $candidate['candidate_id'],
+                    'candidate_name' => $candidate['fullname'],
+                    'photo' => $candidate['photo'] ?? '',
+                    'motto' => $candidate['motto'] ?? '',
+                    'party_name' => $parties[array_search($candidate['party_id'], array_column($parties, 'party_id'))]['party_name'] ?? 'Independent',
+                    'votes' => $votesCount,
+                ];
+            }
+        }
+
+        usort($results, static fn($a, $b) => $a['position_name'] <=> $b['position_name'] ?: $b['votes'] <=> $a['votes'] ?: strcmp($a['candidate_name'], $b['candidate_name']));
+        return $results;
     }
 }

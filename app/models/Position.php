@@ -1,38 +1,42 @@
 <?php
 namespace App\Models;
 
-class Position extends BaseModel
+class Position
 {
     public function all(): array
     {
-        $stmt = $this->db->query('SELECT position_id, position_name, max_votes FROM positions ORDER BY position_name ASC');
-        return $stmt->fetchAll() ?: [];
+        $positions = MockStorage::getPositions();
+        usort($positions, static fn($a, $b) => strcasecmp($a['position_name'], $b['position_name']));
+        return $positions;
     }
 
     public function create(array $data): void
     {
-        $sql = 'INSERT INTO positions (position_name, max_votes) VALUES (:position_name, :max_votes)';
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute([
+        $positions = MockStorage::getPositions();
+        $positions[] = [
+            'position_id' => MockStorage::nextId('positions'),
             'position_name' => $data['position_name'],
             'max_votes' => $data['max_votes'],
-        ]);
+        ];
+        MockStorage::setPositions($positions);
     }
 
     public function update(int $positionId, array $data): void
     {
-        $sql = 'UPDATE positions SET position_name = :position_name, max_votes = :max_votes WHERE position_id = :position_id';
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute([
-            'position_name' => $data['position_name'],
-            'max_votes' => $data['max_votes'],
-            'position_id' => $positionId,
-        ]);
+        $positions = MockStorage::getPositions();
+        foreach ($positions as &$position) {
+            if ($position['position_id'] === $positionId) {
+                $position['position_name'] = $data['position_name'];
+                $position['max_votes'] = $data['max_votes'];
+                break;
+            }
+        }
+        MockStorage::setPositions($positions);
     }
 
     public function delete(int $positionId): void
     {
-        $stmt = $this->db->prepare('DELETE FROM positions WHERE position_id = :position_id');
-        $stmt->execute(['position_id' => $positionId]);
+        $positions = array_filter(MockStorage::getPositions(), static fn($item) => $item['position_id'] !== $positionId);
+        MockStorage::setPositions($positions);
     }
 }

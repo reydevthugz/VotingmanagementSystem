@@ -1,38 +1,42 @@
 <?php
 namespace App\Models;
 
-class PartyList extends BaseModel
+class PartyList
 {
     public function all(): array
     {
-        $stmt = $this->db->query('SELECT party_id, party_name, description FROM partylists ORDER BY party_name ASC');
-        return $stmt->fetchAll() ?: [];
+        $lists = MockStorage::getPartyLists();
+        usort($lists, static fn($a, $b) => strcasecmp($a['party_name'], $b['party_name']));
+        return $lists;
     }
 
     public function create(array $data): void
     {
-        $sql = 'INSERT INTO partylists (party_name, description) VALUES (:party_name, :description)';
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute([
+        $parties = MockStorage::getPartyLists();
+        $parties[] = [
+            'party_id' => MockStorage::nextId('partylists'),
             'party_name' => $data['party_name'],
             'description' => $data['description'],
-        ]);
+        ];
+        MockStorage::setPartyLists($parties);
     }
 
     public function update(int $partyId, array $data): void
     {
-        $sql = 'UPDATE partylists SET party_name = :party_name, description = :description WHERE party_id = :party_id';
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute([
-            'party_name' => $data['party_name'],
-            'description' => $data['description'],
-            'party_id' => $partyId,
-        ]);
+        $parties = MockStorage::getPartyLists();
+        foreach ($parties as &$party) {
+            if ($party['party_id'] === $partyId) {
+                $party['party_name'] = $data['party_name'];
+                $party['description'] = $data['description'];
+                break;
+            }
+        }
+        MockStorage::setPartyLists($parties);
     }
 
     public function delete(int $partyId): void
     {
-        $stmt = $this->db->prepare('DELETE FROM partylists WHERE party_id = :party_id');
-        $stmt->execute(['party_id' => $partyId]);
+        $parties = array_filter(MockStorage::getPartyLists(), static fn($item) => $item['party_id'] !== $partyId);
+        MockStorage::setPartyLists($parties);
     }
 }

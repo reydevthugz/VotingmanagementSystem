@@ -151,11 +151,6 @@ if (session_status() === PHP_SESSION_NONE) {
 define('BASE_URL', rtrim((string) env('BASE_URL', env('APP_URL', 'http://localhost/voting-management-system/')), '/') . '/');
 define('BASE_PATH', rtrim(parse_url(BASE_URL, PHP_URL_PATH) ?: '/', '/'));
 define('ASSETS_URL', BASE_URL . 'assets/');
-define('DB_HOST', env('DB_HOST', '127.0.0.1'));
-define('DB_PORT', (int) env('DB_PORT', 3306));
-define('DB_DATABASE', env('DB_DATABASE', 'voting_management_system'));
-define('DB_USERNAME', env('DB_USERNAME', 'root'));
-define('DB_PASSWORD', env('DB_PASSWORD', ''));
 
 $debug = filter_var((string) env('APP_DEBUG', 'false'), FILTER_VALIDATE_BOOLEAN);
 error_reporting($debug ? E_ALL : 0);

@@ -1,15 +1,7 @@
 <?php
 namespace App\Models;
 
-use App\Core\Database;
-use PDO;
-
 class BaseModel
 {
-    protected PDO $db;
-
-    public function __construct()
-    {
-        $this->db = Database::connection();
-    }
+    // Kept for compatibility with controllers that may instantiate model classes.
 }
