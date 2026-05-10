@@ -1,69 +1,75 @@
 <?php
+
 namespace App\Models;
 
-class Election
+class Election extends BaseModel
 {
     public function all(): array
     {
-        $elections = MockStorage::getElections();
-        usort($elections, static fn($a, $b) => strcmp($b['start_date'], $a['start_date']));
-        return $elections;
+        $stmt = $this->db->query("SELECT * FROM elections ORDER BY start_date DESC");
+        return $stmt->fetchAll();
     }
 
-    public function create(array $data): void
+    public function create(array $data): int
     {
-        $elections = MockStorage::getElections();
-        $elections[] = [
-            'election_id' => MockStorage::nextId('elections'),
-            'title' => $data['title'],
-            'start_date' => $data['start_date'],
-            'end_date' => $data['end_date'],
-            'status' => $data['status'],
-        ];
-        MockStorage::setElections($elections);
+        $stmt = $this->db->prepare("INSERT INTO elections (title, start_date, end_date, status) VALUES (?, ?, ?, ?)");
+        $stmt->execute([
+            $data['title'],
+            $data['start_date'],
+            $data['end_date'],
+            $data['status'] ?? 'inactive'
+        ]);
+        return (int) $this->db->lastInsertId();
     }
 
-    public function update(int $electionId, array $data): void
+    public function update(int $electionId, array $data): bool
     {
-        $elections = MockStorage::getElections();
-        foreach ($elections as &$election) {
-            if ($election['election_id'] === $electionId) {
-                $election['title'] = $data['title'];
-                $election['start_date'] = $data['start_date'];
-                $election['end_date'] = $data['end_date'];
-                $election['status'] = $data['status'];
-                break;
-            }
-        }
-        MockStorage::setElections($elections);
+        $stmt = $this->db->prepare("UPDATE elections SET title = ?, start_date = ?, end_date = ?, status = ? WHERE election_id = ?");
+        return $stmt->execute([
+            $data['title'],
+            $data['start_date'],
+            $data['end_date'],
+            $data['status'],
+            $electionId
+        ]);
     }
 
-    public function delete(int $electionId): void
+    public function delete(int $electionId): bool
     {
-        $elections = array_filter(MockStorage::getElections(), static fn($item) => $item['election_id'] !== $electionId);
-        MockStorage::setElections($elections);
+        $stmt = $this->db->prepare("DELETE FROM elections WHERE election_id = ?");
+        return $stmt->execute([$electionId]);
     }
 
-    public function deactivateAll(): void
+    public function find(int $electionId): ?array
     {
-        $elections = array_map(static function ($election) {
-            if ($election['status'] === 'active') {
-                $election['status'] = 'inactive';
-            }
-            return $election;
-        }, MockStorage::getElections());
-        MockStorage::setElections($elections);
+        $stmt = $this->db->prepare("SELECT * FROM elections WHERE election_id = ?");
+        $stmt->execute([$electionId]);
+        return $stmt->fetch() ?: null;
     }
 
-    public function setStatus(int $electionId, string $status): void
+    public function deactivateAll(): bool
     {
-        $elections = MockStorage::getElections();
-        foreach ($elections as &$election) {
-            if ($election['election_id'] === $electionId) {
-                $election['status'] = $status;
-                break;
-            }
-        }
-        MockStorage::setElections($elections);
+        $stmt = $this->db->prepare("UPDATE elections SET status = 'inactive' WHERE status = 'active'");
+        return $stmt->execute();
+    }
+
+    public function setStatus(int $electionId, string $status): bool
+    {
+        $stmt = $this->db->prepare("UPDATE elections SET status = ? WHERE election_id = ?");
+        return $stmt->execute([$status, $electionId]);
+    }
+
+    public function getActive(): ?array
+    {
+        $stmt = $this->db->prepare("SELECT * FROM elections WHERE status = 'active' AND start_date <= NOW() AND end_date >= NOW() LIMIT 1");
+        $stmt->execute();
+        return $stmt->fetch() ?: null;
+    }
+
+    public function getUpcoming(): array
+    {
+        $stmt = $this->db->prepare("SELECT * FROM elections WHERE start_date > NOW() ORDER BY start_date ASC");
+        $stmt->execute();
+        return $stmt->fetchAll();
     }
 }

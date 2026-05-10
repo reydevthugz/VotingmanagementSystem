@@ -1,6 +1,27 @@
-# Voting Management System
+## Quick Start
 
-MVC-based PHP web application for department school elections.
+```bash
+# Navigate to project
+cd C:\laragon\www\voting-management-system
+
+# Create database
+mysql -u root -e "CREATE DATABASE IF NOT EXISTS votingmanagementsystem;"
+
+# Import schema
+mysql -u root votingmanagementsystem < database\schema.sql
+
+# Copy environment file
+copy .env.example .env
+
+# Start development server
+php -S localhost:8000 -t public
+```
+
+Open browser: **http://localhost:8000**
+
+Default logins:
+- Admin: `admin` / `password`
+- Student: `student` / `password`
 
 ## Milestone 1 Complete
 - Strict MVC structure with reusable layouts and partials

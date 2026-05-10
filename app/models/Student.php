@@ -1,122 +1,160 @@
 <?php
+
 namespace App\Models;
 
-class Student
+class Student extends BaseModel
 {
     public function search(array $filters, int $limit, int $offset): array
     {
-        $students = $this->applyFilters(MockStorage::getStudents(), $filters);
-        usort($students, static fn($a, $b) => strcasecmp($a['fullname'], $b['fullname']));
-        return array_slice($students, $offset, $limit);
+        $where = [];
+        $params = [];
+
+        if (!empty($filters['query'])) {
+            $where[] = "(fullname LIKE ? OR email LIKE ? OR course LIKE ? OR section LIKE ?)";
+            $query = '%' . $filters['query'] . '%';
+            $params = array_merge($params, [$query, $query, $query, $query]);
+        }
+
+        if (!empty($filters['course'])) {
+            $where[] = "course = ?";
+            $params[] = $filters['course'];
+        }
+
+        if (!empty($filters['year'])) {
+            $where[] = "year = ?";
+            $params[] = $filters['year'];
+        }
+
+        if (!empty($filters['section'])) {
+            $where[] = "section = ?";
+            $params[] = $filters['section'];
+        }
+
+        $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        $stmt = $this->db->prepare("SELECT * FROM students $whereClause ORDER BY fullname ASC LIMIT ? OFFSET ?");
+        $params[] = $limit;
+        $params[] = $offset;
+        $stmt->execute($params);
+        return $stmt->fetchAll();
     }
 
     public function count(array $filters): int
     {
-        return count($this->applyFilters(MockStorage::getStudents(), $filters));
-    }
+        $where = [];
+        $params = [];
 
-    public function create(array $data): void
-    {
-        $students = MockStorage::getStudents();
-        $students[] = [
-            'student_id' => MockStorage::nextId('students'),
-            'fullname' => $data['fullname'],
-            'course' => $data['course'],
-            'year' => $data['year'],
-            'section' => $data['section'],
-            'email' => $data['email'],
-        ];
-        MockStorage::setStudents($students);
-    }
-
-    public function update(int $studentId, array $data): void
-    {
-        $students = MockStorage::getStudents();
-        foreach ($students as &$student) {
-            if ($student['student_id'] === $studentId) {
-                $student['fullname'] = $data['fullname'];
-                $student['course'] = $data['course'];
-                $student['year'] = $data['year'];
-                $student['section'] = $data['section'];
-                $student['email'] = $data['email'];
-                break;
-            }
+        if (!empty($filters['query'])) {
+            $where[] = "(fullname LIKE ? OR email LIKE ? OR course LIKE ? OR section LIKE ?)";
+            $query = '%' . $filters['query'] . '%';
+            $params = array_merge($params, [$query, $query, $query, $query]);
         }
-        MockStorage::setStudents($students);
+
+        if (!empty($filters['course'])) {
+            $where[] = "course = ?";
+            $params[] = $filters['course'];
+        }
+
+        if (!empty($filters['year'])) {
+            $where[] = "year = ?";
+            $params[] = $filters['year'];
+        }
+
+        if (!empty($filters['section'])) {
+            $where[] = "section = ?";
+            $params[] = $filters['section'];
+        }
+
+        $whereClause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM students $whereClause");
+        $stmt->execute($params);
+        return (int) $stmt->fetchColumn();
     }
 
-    public function delete(int $studentId): void
+    public function create(array $data): int
     {
-        $students = array_filter(MockStorage::getStudents(), static fn($student) => $student['student_id'] !== $studentId);
-        MockStorage::setStudents($students);
+        $stmt = $this->db->prepare("INSERT INTO students (fullname, email, course, year, section, password) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->execute([
+            $data['fullname'],
+            $data['email'],
+            $data['course'],
+            $data['year'],
+            $data['section'],
+            password_hash($data['password'], PASSWORD_BCRYPT)
+        ]);
+        return (int) $this->db->lastInsertId();
+    }
+
+    public function update(int $studentId, array $data): bool
+    {
+        $stmt = $this->db->prepare("UPDATE students SET fullname = ?, email = ?, course = ?, year = ?, section = ? WHERE student_id = ?");
+        return $stmt->execute([
+            $data['fullname'],
+            $data['email'],
+            $data['course'],
+            $data['year'],
+            $data['section'],
+            $studentId
+        ]);
+    }
+
+    public function delete(int $studentId): bool
+    {
+        $stmt = $this->db->prepare("DELETE FROM students WHERE student_id = ?");
+        return $stmt->execute([$studentId]);
     }
 
     public function find(int $studentId): ?array
     {
-        foreach (MockStorage::getStudents() as $student) {
-            if ($student['student_id'] === $studentId) {
-                return $student;
-            }
-        }
-        return null;
+        $stmt = $this->db->prepare("SELECT * FROM students WHERE student_id = ?");
+        $stmt->execute([$studentId]);
+        return $stmt->fetch() ?: null;
+    }
+
+    public function findByEmail(string $email): ?array
+    {
+        $stmt = $this->db->prepare("SELECT * FROM students WHERE email = ?");
+        $stmt->execute([$email]);
+        return $stmt->fetch() ?: null;
     }
 
     public function existsEmail(string $email, ?int $excludeId = null): bool
     {
-        foreach (MockStorage::getStudents() as $student) {
-            if (strcasecmp($student['email'], $email) === 0 && $student['student_id'] !== $excludeId) {
-                return true;
-            }
+        $sql = "SELECT COUNT(*) FROM students WHERE email = ?";
+        $params = [$email];
+
+        if ($excludeId !== null) {
+            $sql .= " AND student_id != ?";
+            $params[] = $excludeId;
         }
-        return false;
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return (int) $stmt->fetchColumn() > 0;
     }
 
     public function distinctCourses(): array
     {
-        return $this->distinctValues(MockStorage::getStudents(), 'course');
+        $stmt = $this->db->query("SELECT DISTINCT course FROM students WHERE course != '' ORDER BY course");
+        return $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
 
     public function distinctYears(): array
     {
-        return $this->distinctValues(MockStorage::getStudents(), 'year');
+        $stmt = $this->db->query("SELECT DISTINCT year FROM students WHERE year != '' ORDER BY year");
+        return $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
 
     public function distinctSections(): array
     {
-        return $this->distinctValues(MockStorage::getStudents(), 'section');
+        $stmt = $this->db->query("SELECT DISTINCT section FROM students WHERE section != '' ORDER BY section");
+        return $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
 
-    private function applyFilters(array $students, array $filters): array
+    public function updateVotingStatus(int $studentId, string $status): bool
     {
-        return array_values(array_filter($students, static function ($student) use ($filters) {
-            if (!empty($filters['query'])) {
-                $query = mb_strtolower($filters['query']);
-                $text = mb_strtolower($student['fullname'] . ' ' . $student['email'] . ' ' . $student['course'] . ' ' . $student['section']);
-                if (!str_contains($text, $query)) {
-                    return false;
-                }
-            }
-
-            if (!empty($filters['course']) && strcasecmp($student['course'], $filters['course']) !== 0) {
-                return false;
-            }
-
-            if (!empty($filters['year']) && strcasecmp($student['year'], $filters['year']) !== 0) {
-                return false;
-            }
-
-            if (!empty($filters['section']) && strcasecmp($student['section'], $filters['section']) !== 0) {
-                return false;
-            }
-
-            return true;
-        }));
-    }
-
-    private function distinctValues(array $items, string $key): array
-    {
-        $values = array_unique(array_filter(array_map(static fn($item) => $item[$key] ?? '', $items), static fn($value) => $value !== ''));
-        sort($values, SORT_NATURAL | SORT_FLAG_CASE);
-        return array_values($values);
+        $stmt = $this->db->prepare("UPDATE students SET voting_status = ? WHERE student_id = ?");
+        return $stmt->execute([$status, $studentId]);
     }
 }

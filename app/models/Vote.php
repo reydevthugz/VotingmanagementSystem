@@ -1,57 +1,58 @@
 <?php
+
 namespace App\Models;
 
-class Vote
+class Vote extends BaseModel
 {
     public function activeElection(): ?array
     {
-        $elections = array_filter(MockStorage::getElections(), static fn($election) => $election['status'] === 'active');
-        if (empty($elections)) {
-            return null;
-        }
-
-        usort($elections, static fn($a, $b) => strcmp($b['start_date'], $a['start_date']));
-        return [
-            'election_id' => $elections[0]['election_id'],
-            'title' => $elections[0]['title'],
-        ];
+        $stmt = $this->db->prepare("SELECT election_id, title FROM elections WHERE status = 'active' AND start_date <= NOW() AND end_date >= NOW() ORDER BY start_date DESC LIMIT 1");
+        $stmt->execute();
+        return $stmt->fetch() ?: null;
     }
 
     public function ballotByPosition(): array
     {
-        $positions = MockStorage::getPositions();
-        $candidates = MockStorage::getCandidates();
-        $parties = MockStorage::getPartyLists();
+        $stmt = $this->db->query("
+            SELECT
+                p.position_id,
+                p.position_name,
+                p.max_votes,
+                c.candidate_id,
+                c.fullname,
+                c.photo,
+                c.motto,
+                pl.party_name
+            FROM positions p
+            LEFT JOIN candidates c ON p.position_id = c.position_id
+            LEFT JOIN party_lists pl ON c.party_id = pl.party_id
+            ORDER BY p.position_name ASC, c.fullname ASC
+        ");
 
-        usort($positions, static fn($a, $b) => strcasecmp($a['position_name'], $b['position_name']));
-
+        $results = $stmt->fetchAll();
         $grouped = [];
-        foreach ($positions as $position) {
-            $grouped[$position['position_id']] = [
-                'position_id' => $position['position_id'],
-                'position_name' => $position['position_name'],
-                'max_votes' => $position['max_votes'],
-                'candidates' => [],
-            ];
-        }
 
-        foreach ($candidates as $candidate) {
-            $positionId = $candidate['position_id'];
+        foreach ($results as $row) {
+            $positionId = $row['position_id'];
+
             if (!isset($grouped[$positionId])) {
-                continue;
+                $grouped[$positionId] = [
+                    'position_id' => $row['position_id'],
+                    'position_name' => $row['position_name'],
+                    'max_votes' => $row['max_votes'],
+                    'candidates' => []
+                ];
             }
 
-            $grouped[$positionId]['candidates'][] = [
-                'candidate_id' => $candidate['candidate_id'],
-                'fullname' => $candidate['fullname'],
-                'photo' => $candidate['photo'] ?? '',
-                'motto' => $candidate['motto'] ?? '',
-                'party_name' => $parties[array_search($candidate['party_id'], array_column($parties, 'party_id'))]['party_name'] ?? 'Independent',
-            ];
-        }
-
-        foreach ($grouped as &$position) {
-            usort($position['candidates'], static fn($a, $b) => strcasecmp($a['fullname'], $b['fullname']));
+            if ($row['candidate_id']) {
+                $grouped[$positionId]['candidates'][] = [
+                    'candidate_id' => $row['candidate_id'],
+                    'fullname' => $row['fullname'],
+                    'photo' => $row['photo'] ?: '',
+                    'motto' => $row['motto'] ?: '',
+                    'party_name' => $row['party_name'] ?: 'Independent'
+                ];
+            }
         }
 
         return array_values($grouped);
@@ -59,7 +60,10 @@ class Vote
 
     public function studentVotes(int $studentId, int $electionId): array
     {
-        $votes = array_filter(MockStorage::getVotes(), static fn($vote) => $vote['student_id'] === $studentId && $vote['election_id'] === $electionId);
+        $stmt = $this->db->prepare("SELECT position_id, candidate_id FROM votes WHERE student_id = ? AND election_id = ?");
+        $stmt->execute([$studentId, $electionId]);
+        $votes = $stmt->fetchAll();
+
         $result = [];
         foreach ($votes as $vote) {
             $result[$vote['position_id']] = $vote['candidate_id'];
@@ -69,71 +73,60 @@ class Vote
 
     public function hasVotedInElection(int $studentId, int $electionId): bool
     {
-        foreach (MockStorage::getVotes() as $vote) {
-            if ($vote['student_id'] === $studentId && $vote['election_id'] === $electionId) {
-                return true;
-            }
-        }
-        return false;
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM votes WHERE student_id = ? AND election_id = ?");
+        $stmt->execute([$studentId, $electionId]);
+        return (int) $stmt->fetchColumn() > 0;
     }
 
     public function candidateById(int $candidateId): ?array
     {
-        foreach (MockStorage::getCandidates() as $candidate) {
-            if ($candidate['candidate_id'] === $candidateId) {
-                return [
-                    'candidate_id' => $candidate['candidate_id'],
-                    'position_id' => $candidate['position_id'],
-                ];
-            }
-        }
-        return null;
+        $stmt = $this->db->prepare("SELECT candidate_id, position_id FROM candidates WHERE candidate_id = ?");
+        $stmt->execute([$candidateId]);
+        return $stmt->fetch() ?: null;
     }
 
     public function confirmationDetails(int $studentId, int $electionId): array
     {
-        $votes = array_filter(MockStorage::getVotes(), static fn($vote) => $vote['student_id'] === $studentId && $vote['election_id'] === $electionId);
-        $candidates = MockStorage::getCandidates();
-        $positions = MockStorage::getPositions();
-        $parties = MockStorage::getPartyLists();
-
-        $details = [];
-        foreach ($votes as $vote) {
-            $candidate = null;
-            foreach ($candidates as $item) {
-                if ($item['candidate_id'] === $vote['candidate_id']) {
-                    $candidate = $item;
-                    break;
-                }
-            }
-
-            if ($candidate === null) {
-                continue;
-            }
-
-            $position = array_values(array_filter($positions, static fn($item) => $item['position_id'] === $vote['position_id']));
-            $details[] = [
-                'position_name' => $position[0]['position_name'] ?? 'Unknown Position',
-                'candidate_name' => $candidate['fullname'],
-                'party_name' => $parties[array_search($candidate['party_id'], array_column($parties, 'party_id'))]['party_name'] ?? 'Independent',
-            ];
-        }
-
-        usort($details, static fn($a, $b) => strcasecmp($a['position_name'], $b['position_name']));
-        return $details;
+        $stmt = $this->db->prepare("
+            SELECT
+                p.position_name,
+                c.fullname as candidate_name,
+                pl.party_name
+            FROM votes v
+            JOIN candidates c ON v.candidate_id = c.candidate_id
+            JOIN positions p ON v.position_id = p.position_id
+            LEFT JOIN party_lists pl ON c.party_id = pl.party_id
+            WHERE v.student_id = ? AND v.election_id = ?
+            ORDER BY p.position_name ASC
+        ");
+        $stmt->execute([$studentId, $electionId]);
+        return $stmt->fetchAll();
     }
 
-    public function createVote(int $studentId, int $candidateId, int $positionId, int $electionId): void
+    public function createVote(int $studentId, int $candidateId, int $positionId, int $electionId): int
     {
-        $votes = MockStorage::getVotes();
-        $votes[] = [
-            'vote_id' => MockStorage::nextId('votes'),
-            'student_id' => $studentId,
-            'candidate_id' => $candidateId,
-            'position_id' => $positionId,
-            'election_id' => $electionId,
-            'voted_at' => date('Y-m-d H:i:s'),
-        ];
-        MockStorage::setVotes($votes);
+        $stmt = $this->db->prepare("INSERT INTO votes (student_id, candidate_id, election_id) VALUES (?, ?, ?)");
+        $stmt->execute([$studentId, $candidateId, $electionId]);
+        return (int) $this->db->lastInsertId();
+    }
+
+    public function getVoteCounts(int $electionId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT
+                c.candidate_id,
+                c.fullname,
+                p.position_name,
+                pl.party_name,
+                COUNT(v.vote_id) as vote_count
+            FROM candidates c
+            JOIN positions p ON c.position_id = p.position_id
+            LEFT JOIN party_lists pl ON c.party_id = pl.party_id
+            LEFT JOIN votes v ON c.candidate_id = v.candidate_id AND v.election_id = ?
+            GROUP BY c.candidate_id, c.fullname, p.position_name, pl.party_name
+            ORDER BY p.position_name ASC, vote_count DESC
+        ");
+        $stmt->execute([$electionId]);
+        return $stmt->fetchAll();
     }
 }
