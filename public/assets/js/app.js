@@ -158,9 +158,25 @@ function renderReportChart() {
     setInterval(refreshReportData, 20000);
 }
 
+function initializePasswordToggle() {
+    const toggleButton = document.getElementById('togglePassword');
+    const passwordInput = document.getElementById('password');
+    if (toggleButton && passwordInput) {
+        toggleButton.addEventListener('click', () => {
+            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordInput.setAttribute('type', type);
+            const icon = toggleButton.querySelector('i');
+            if (icon) {
+                icon.className = type === 'password' ? 'bi bi-eye' : 'bi bi-eye-slash';
+            }
+        });
+    }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     renderAdminDashboard();
     initializeImagePreviews();
+    initializePasswordToggle();
     renderReportChart();
 
     const printButton = document.getElementById('printReportButton');
