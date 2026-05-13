@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use PDO;
+
 class Student extends BaseModel
 {
     public function search(array $filters, int $limit, int $offset): array
