@@ -95,6 +95,25 @@ function initializeImagePreviews() {
     });
 }
 
+function initializePasswordToggles() {
+    document.querySelectorAll('[data-password-toggle]').forEach((button) => {
+        const targetId = button.dataset.passwordToggle;
+        const passwordInput = document.getElementById(targetId);
+        if (!passwordInput) {
+            return;
+        }
+
+        button.addEventListener('click', () => {
+            const type = passwordInput.type === 'password' ? 'text' : 'password';
+            passwordInput.type = type;
+            const icon = button.querySelector('i');
+            if (icon) {
+                icon.className = type === 'password' ? 'bi bi-eye' : 'bi bi-eye-slash';
+            }
+        });
+    });
+}
+
 function renderReportChart() {
     const canvas = document.getElementById('reportChart');
     if (!canvas || !window.Chart) return;

@@ -13,10 +13,10 @@
                 <form method="POST" action="<?= BASE_URL; ?>login">
                     <?= csrf_field() ?>
                     <div class="mb-3">
-                        <label for="email" class="form-label fw-semibold">Email / Student ID</label>
+                        <label for="email" class="form-label fw-semibold">Email or Student ID</label>
                         <div class="input-group">
                             <span class="input-group-text bg-light border-end-0 rounded-start-3"><i class="bi bi-person-fill text-muted"></i></span>
-                            <input type="text" id="email" class="form-control border-start-0 rounded-end-3 <?= !empty($errors['email']) ? 'is-invalid' : '' ?>" name="email" value="<?= htmlspecialchars($old['email'] ?? '') ?>" placeholder="Enter your email or ID" required>
+                            <input type="text" id="email" class="form-control border-start-0 rounded-end-3 <?= !empty($errors['email']) ? 'is-invalid' : '' ?>" name="email" value="<?= htmlspecialchars($old['email'] ?? '') ?>" placeholder="e.g., admin or user@example.com" required>
                         </div>
                         <?php if (!empty($errors['email'])): ?>
                             <div class="invalid-feedback d-block mt-1"><?= htmlspecialchars($errors['email']) ?></div>
@@ -42,7 +42,7 @@
                     </div>
                     <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold rounded-3 login-btn">Sign In</button>
                 </form>
-                <p class="text-center text-muted mt-4 mb-0">Don't have an account? <a href="#" class="text-primary fw-medium text-decoration-none">Sign up</a></p>
+                <p class="text-center text-muted mt-4 mb-0">Don't have an account? <a href="<?= BASE_URL; ?>register" class="text-primary fw-medium text-decoration-none">Sign up</a></p>
             </div>
         </div>
 

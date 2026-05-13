@@ -14,6 +14,8 @@ use App\Middleware\RoleMiddleware;
 
 $router->get('/login', [AuthController::class, 'loginForm'], [GuestMiddleware::class]);
 $router->post('/login', [AuthController::class, 'login'], [GuestMiddleware::class]);
+$router->get('/register', [AuthController::class, 'registerForm'], [GuestMiddleware::class]);
+$router->post('/register', [AuthController::class, 'register'], [GuestMiddleware::class]);
 $router->get('/logout', [AuthController::class, 'logout'], [AuthMiddleware::class]);
 $router->get('/', [HomeController::class, 'redirectToDashboard'], [AuthMiddleware::class]);
 $router->get('/dashboard', [HomeController::class, 'index'], [AuthMiddleware::class, RoleMiddleware::class . ':admin']);

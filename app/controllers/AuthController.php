@@ -1,6 +1,7 @@
 <?php
 namespace App\Controllers;
 
+use App\Models\Student;
 use App\Models\User;
 
 class AuthController extends BaseController
@@ -15,11 +16,43 @@ class AuthController extends BaseController
         ]);
     }
 
-    public function login(): void
+    public function registerForm(): void
     {
+        $this->render('auth/register', [
+            'pageTitle' => 'Register',
+            'errors' => flash('_errors') ?? [],
+            'old' => flash('_old') ?? [],
+            'notice' => flash(),
+        ]);
+    }
+
+    public function register(): void
+    {
+        $studentId = trim($_POST['student_id'] ?? '');
+        $fullname = trim($_POST['fullname'] ?? '');
+        $year = trim($_POST['year'] ?? '');
+        $section = trim($_POST['section'] ?? '');
         $email = trim($_POST['email'] ?? '');
         $password = (string) ($_POST['password'] ?? '');
+        $passwordConfirmation = (string) ($_POST['password_confirmation'] ?? '');
+        $termsAccepted = isset($_POST['terms']);
         $errors = [];
+
+        if ($studentId === '') {
+            $errors['student_id'] = 'Student ID is required.';
+        }
+
+        if ($fullname === '') {
+            $errors['fullname'] = 'Full name is required.';
+        }
+
+        if ($year === '') {
+            $errors['year'] = 'Please select your year.';
+        }
+
+        if ($section === '') {
+            $errors['section'] = 'Section is required.';
+        }
 
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $errors['email'] = 'Please enter a valid email address.';
@@ -29,15 +62,99 @@ class AuthController extends BaseController
             $errors['password'] = 'Password is required.';
         }
 
+        if ($passwordConfirmation === '') {
+            $errors['password_confirmation'] = 'Please confirm your password.';
+        }
+
+        if ($password !== '' && $passwordConfirmation !== '' && $password !== $passwordConfirmation) {
+            $errors['password_confirmation'] = 'Passwords do not match.';
+        }
+
+        if (!$termsAccepted) {
+            $errors['terms'] = 'Please agree to the terms to continue.';
+        }
+
         if (!empty($errors)) {
-            $this->backWithErrors('/login', $errors, ['email' => $email]);
+            $this->backWithErrors('/register', $errors, [
+                'student_id' => $studentId,
+                'fullname' => $fullname,
+                'year' => $year,
+                'section' => $section,
+                'email' => $email,
+            ]);
         }
 
         $userModel = new User();
-        $user = $userModel->findByEmail($email);
+        $studentModel = new Student();
+
+        if ($userModel->findByEmail($email)) {
+            $this->backWithErrors('/register', ['email' => 'This email is already registered.'], [
+                'student_id' => $studentId,
+                'fullname' => $fullname,
+                'year' => $year,
+                'section' => $section,
+                'email' => $email,
+            ]);
+        }
+
+        if ($studentModel->findByEmail($email)) {
+            $this->backWithErrors('/register', ['email' => 'This email is already registered.'], [
+                'student_id' => $studentId,
+                'fullname' => $fullname,
+                'year' => $year,
+                'section' => $section,
+                'email' => $email,
+            ]);
+        }
+
+        $userModel->create([
+            'fullname' => $fullname,
+            'username' => $email,
+            'password' => password_hash($password, PASSWORD_BCRYPT),
+            'role' => 'student',
+        ]);
+
+        $studentModel->create([
+            'fullname' => $fullname,
+            'email' => $email,
+            'course' => 'General',
+            'year' => $year,
+            'section' => $section,
+            'password' => $password,
+        ]);
+
+        $this->flash('success', 'Registration successful. Please sign in.');
+        $this->redirect('/login');
+    }
+
+    public function login(): void
+    {
+        // Accept both email and username/student ID formats
+        $credential = trim($_POST['email'] ?? '');
+        $password = (string) ($_POST['password'] ?? '');
+        $errors = [];
+
+        // Validate input is not empty (but allow any non-empty string - email, username, or student ID)
+        if ($credential === '') {
+            $errors['email'] = 'Please enter your email or student ID.';
+        }
+
+        if ($password === '') {
+            $errors['password'] = 'Password is required.';
+        }
+
+        if (!empty($errors)) {
+            $this->backWithErrors('/login', $errors, ['email' => $credential]);
+        }
+
+        // Query database by username/email credential
+        // The users table stores login identifiers in the 'username' column
+        $userModel = new User();
+        $user = $userModel->findByEmail($credential);
 
         if (!$user) {
-            $this->backWithErrors('/login', ['auth' => 'Invalid email or password.'], ['email' => $email]);
+            // Generic error message for security (don't reveal if user exists)
+            $this->backWithErrors('/login', ['auth' => 'Invalid email/ID or password.'], ['email' => $credential]);
         }
 
         $storedPassword = (string) $user['password'];
@@ -49,27 +166,27 @@ class AuthController extends BaseController
         } elseif (hash_equals($storedPassword, $password)) {
             // Backward-compatible fallback: upgrade legacy plaintext password to bcrypt.
             $isValidPassword = true;
-            $userModel->updatePasswordHash((int) $user['user_id'], password_hash($password, PASSWORD_BCRYPT));
+            $userModel->updatePasswordHash((int) $user['id'], password_hash($password, PASSWORD_BCRYPT));
         }
 
         if (!$isValidPassword) {
-            $this->backWithErrors('/login', ['auth' => 'Invalid email or password.'], ['email' => $email]);
+            $this->backWithErrors('/login', ['auth' => 'Invalid email/ID or password.'], ['email' => $credential]);
         }
 
         if (($user['status'] ?? 'active') !== 'active') {
-            $this->backWithErrors('/login', ['auth' => 'Your account is inactive. Please contact administrator.'], ['email' => $email]);
+            $this->backWithErrors('/login', ['auth' => 'Your account is inactive. Please contact administrator.'], ['email' => $credential]);
         }
 
         session_regenerate_id(true);
         $_SESSION['user'] = [
-            'id' => (int) $user['user_id'],
+            'id' => (int) $user['id'],
             'name' => $user['fullname'],
-            'email' => $user['email'],
+            'email' => $user['username'],
             'role' => $user['role'],
             'agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
             'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
         ];
-        $this->recordActivity('user_login', ['user_id' => (int) $user['user_id'], 'role' => $user['role']]);
+        $this->recordActivity('user_login', ['user_id' => (int) $user['id'], 'role' => $user['role']]);
 
         if ($user['role'] === 'student') {
             $this->redirect('/student/dashboard');
