@@ -1,0 +1,17 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /voting-management-system/
+
+    # Route asset requests to public/assets
+    RewriteCond %{REQUEST_URI} ^/voting-management-system/assets/
+    RewriteRule ^assets/(.*)$ public/assets/$1 [L,QSA]
+
+    # Keep public folder accessible if referenced directly
+    RewriteCond %{REQUEST_URI} ^/voting-management-system/public/
+    RewriteRule ^public/(.*)$ public/$1 [L,QSA]
+
+    # Send all other requests to public/index.php
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ public/index.php [L,QSA]
+</IfModule>
