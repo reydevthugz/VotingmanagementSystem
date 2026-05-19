@@ -97,10 +97,15 @@ class ElectionController extends BaseController
 
         try {
             $electionModel = new Election();
+<<<<<<< HEAD
             if (!$electionModel->activate($electionId)) {
                 $this->flash('danger', 'Election record not found.');
                 $this->redirect('/admin/elections');
             }
+=======
+            $electionModel->deactivateAll();
+            $electionModel->setStatus($electionId, 'active');
+>>>>>>> ab7ee4836c683c2baa5bb345d3929ebce16bf58f
             $this->recordActivity('election_activate', ['election_id' => $electionId]);
             $this->flash('success', 'Election activated successfully.');
         } catch (Throwable $exception) {

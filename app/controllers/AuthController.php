@@ -178,7 +178,11 @@ class AuthController extends BaseController
         }
 
         session_regenerate_id(true);
+<<<<<<< HEAD
         $sessionUser = [
+=======
+        $_SESSION['user'] = [
+>>>>>>> ab7ee4836c683c2baa5bb345d3929ebce16bf58f
             'id' => (int) $user['id'],
             'name' => $user['fullname'],
             'email' => $user['username'],
@@ -186,6 +190,7 @@ class AuthController extends BaseController
             'agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
             'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
         ];
+<<<<<<< HEAD
 
         if ($user['role'] === 'student') {
             $student = (new Student())->findByEmail((string) $user['username']);
@@ -195,6 +200,8 @@ class AuthController extends BaseController
         }
 
         $_SESSION['user'] = $sessionUser;
+=======
+>>>>>>> ab7ee4836c683c2baa5bb345d3929ebce16bf58f
         $this->recordActivity('user_login', ['user_id' => (int) $user['id'], 'role' => $user['role']]);
 
         if ($user['role'] === 'student') {

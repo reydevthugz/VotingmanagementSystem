@@ -6,8 +6,14 @@ class Vote extends BaseModel
 {
     public function activeElection(): ?array
     {
+<<<<<<< HEAD
         // Delegate election lookup to Election model so SQL stays in the model layer.
         return (new Election())->getActiveElection();
+=======
+        $stmt = $this->db->prepare("SELECT election_id, title FROM elections WHERE status = 'active' AND start_date <= NOW() AND end_date >= NOW() ORDER BY start_date DESC LIMIT 1");
+        $stmt->execute();
+        return $stmt->fetch() ?: null;
+>>>>>>> ab7ee4836c683c2baa5bb345d3929ebce16bf58f
     }
 
     public function ballotByPosition(): array
@@ -59,12 +65,16 @@ class Vote extends BaseModel
 
     public function studentVotes(int $studentId, int $electionId): array
     {
+<<<<<<< HEAD
         $stmt = $this->db->prepare("
             SELECT c.position_id, v.candidate_id
             FROM votes v
             INNER JOIN candidates c ON v.candidate_id = c.candidate_id
             WHERE v.student_id = ? AND v.election_id = ?
         ");
+=======
+        $stmt = $this->db->prepare("SELECT position_id, candidate_id FROM votes WHERE student_id = ? AND election_id = ?");
+>>>>>>> ab7ee4836c683c2baa5bb345d3929ebce16bf58f
         $stmt->execute([$studentId, $electionId]);
         $votes = $stmt->fetchAll();
 
@@ -98,7 +108,11 @@ class Vote extends BaseModel
                 pl.party_name
             FROM votes v
             JOIN candidates c ON v.candidate_id = c.candidate_id
+<<<<<<< HEAD
             JOIN positions p ON c.position_id = p.position_id
+=======
+            JOIN positions p ON v.position_id = p.position_id
+>>>>>>> ab7ee4836c683c2baa5bb345d3929ebce16bf58f
             LEFT JOIN party_lists pl ON c.party_id = pl.party_id
             WHERE v.student_id = ? AND v.election_id = ?
             ORDER BY p.position_name ASC

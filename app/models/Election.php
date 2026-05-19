@@ -4,12 +4,15 @@ namespace App\Models;
 
 class Election extends BaseModel
 {
+<<<<<<< HEAD
     private function normalizeStatus(string $status): string
     {
         $normalized = strtolower(trim($status));
         return in_array($normalized, ['active', 'inactive'], true) ? $normalized : 'inactive';
     }
 
+=======
+>>>>>>> ab7ee4836c683c2baa5bb345d3929ebce16bf58f
     public function all(): array
     {
         $stmt = $this->db->query("SELECT * FROM elections ORDER BY start_date DESC");
@@ -23,7 +26,11 @@ class Election extends BaseModel
             $data['title'],
             $data['start_date'],
             $data['end_date'],
+<<<<<<< HEAD
             $this->normalizeStatus((string) ($data['status'] ?? 'inactive'))
+=======
+            $data['status'] ?? 'inactive'
+>>>>>>> ab7ee4836c683c2baa5bb345d3929ebce16bf58f
         ]);
         return (int) $this->db->lastInsertId();
     }
@@ -35,7 +42,11 @@ class Election extends BaseModel
             $data['title'],
             $data['start_date'],
             $data['end_date'],
+<<<<<<< HEAD
             $this->normalizeStatus((string) ($data['status'] ?? 'inactive')),
+=======
+            $data['status'],
+>>>>>>> ab7ee4836c683c2baa5bb345d3929ebce16bf58f
             $electionId
         ]);
     }
@@ -55,13 +66,18 @@ class Election extends BaseModel
 
     public function deactivateAll(): bool
     {
+<<<<<<< HEAD
         $stmt = $this->db->prepare("UPDATE elections SET status = 'inactive' WHERE LOWER(TRIM(status)) = 'active'");
+=======
+        $stmt = $this->db->prepare("UPDATE elections SET status = 'inactive' WHERE status = 'active'");
+>>>>>>> ab7ee4836c683c2baa5bb345d3929ebce16bf58f
         return $stmt->execute();
     }
 
     public function setStatus(int $electionId, string $status): bool
     {
         $stmt = $this->db->prepare("UPDATE elections SET status = ? WHERE election_id = ?");
+<<<<<<< HEAD
         return $stmt->execute([$this->normalizeStatus($status), $electionId]);
     }
 
@@ -111,11 +127,20 @@ class Election extends BaseModel
         }
 
         return $election;
+=======
+        return $stmt->execute([$status, $electionId]);
+>>>>>>> ab7ee4836c683c2baa5bb345d3929ebce16bf58f
     }
 
     public function getActive(): ?array
     {
+<<<<<<< HEAD
         return $this->getActiveElection();
+=======
+        $stmt = $this->db->prepare("SELECT * FROM elections WHERE status = 'active' AND start_date <= NOW() AND end_date >= NOW() LIMIT 1");
+        $stmt->execute();
+        return $stmt->fetch() ?: null;
+>>>>>>> ab7ee4836c683c2baa5bb345d3929ebce16bf58f
     }
 
     public function getUpcoming(): array

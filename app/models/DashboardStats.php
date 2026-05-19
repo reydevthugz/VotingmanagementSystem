@@ -61,7 +61,14 @@ class DashboardStats extends BaseModel
 
     private function activeElectionStatus(): string
     {
+<<<<<<< HEAD
         $activeElection = (new Election())->getActiveElection();
         return $activeElection ? (string) $activeElection['status'] : 'inactive';
+=======
+        $stmt = $this->db->prepare("SELECT status FROM elections WHERE status = 'active' AND start_date <= NOW() AND end_date >= NOW() ORDER BY start_date DESC LIMIT 1");
+        $stmt->execute();
+        $result = $stmt->fetch();
+        return $result ? $result['status'] : 'inactive';
+>>>>>>> ab7ee4836c683c2baa5bb345d3929ebce16bf58f
     }
 }

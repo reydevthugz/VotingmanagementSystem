@@ -74,6 +74,7 @@ Stack trace:
 #1 C:\laragon\www\voting-management-system\app\core\Router.php(66): App\Controllers\StudentController->index()
 #2 C:\laragon\www\voting-management-system\public\index.php(8): App\Core\Router->dispatch('GET', '/voting-managem...')
 #3 {main}
+<<<<<<< HEAD
 [2026-05-14 12:06:42] syntax error, unexpected identifier "SELECT", expecting ")" in C:\laragon\www\voting-management-system\app\models\Vote.php on line 22
 Stack trace:
 #0 C:\laragon\www\voting-management-system\app\controllers\VoteController.php(11): {closure}('App\\Models\\Vote')
@@ -92,3 +93,5 @@ Stack trace:
 #1 C:\laragon\www\voting-management-system\app\core\Router.php(66): App\Controllers\VoteController->confirmation()
 #2 C:\laragon\www\voting-management-system\public\index.php(8): App\Core\Router->dispatch('GET', '/voting-managem...')
 #3 {main}
+=======
+>>>>>>> ab7ee4836c683c2baa5bb345d3929ebce16bf58f

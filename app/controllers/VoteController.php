@@ -1,8 +1,11 @@
 <?php
 namespace App\Controllers;
 
+<<<<<<< HEAD
 use App\Models\Election;
 use App\Models\Student;
+=======
+>>>>>>> ab7ee4836c683c2baa5bb345d3929ebce16bf58f
 use App\Models\Vote;
 use Throwable;
 
@@ -10,9 +13,14 @@ class VoteController extends BaseController
 {
     public function index(): void
     {
+<<<<<<< HEAD
         $electionModel = new Election();
         $voteModel = new Vote();
         $activeElection = $electionModel->getActiveElection();
+=======
+        $voteModel = new Vote();
+        $activeElection = $voteModel->activeElection();
+>>>>>>> ab7ee4836c683c2baa5bb345d3929ebce16bf58f
 
         if (!$activeElection) {
             $this->render('student/vote', [
@@ -26,7 +34,11 @@ class VoteController extends BaseController
             return;
         }
 
+<<<<<<< HEAD
         $studentId = $this->resolveStudentId();
+=======
+        $studentId = (int) ($_SESSION['user']['id'] ?? 0);
+>>>>>>> ab7ee4836c683c2baa5bb345d3929ebce16bf58f
         $positions = $voteModel->ballotByPosition();
         $votes = $voteModel->studentVotes($studentId, (int) $activeElection['election_id']);
         $hasVoted = $voteModel->hasVotedInElection($studentId, (int) $activeElection['election_id']);
@@ -43,6 +55,7 @@ class VoteController extends BaseController
 
     public function submit(): void
     {
+<<<<<<< HEAD
         $studentId = $this->resolveStudentId();
         if ($studentId <= 0) {
             $this->flash('danger', 'Unable to identify your student account. Please contact administrator.');
@@ -52,6 +65,11 @@ class VoteController extends BaseController
         $voteModel = new Vote();
         $electionModel = new Election();
         $activeElection = $electionModel->getActiveElection();
+=======
+        $studentId = (int) ($_SESSION['user']['id'] ?? 0);
+        $voteModel = new Vote();
+        $activeElection = $voteModel->activeElection();
+>>>>>>> ab7ee4836c683c2baa5bb345d3929ebce16bf58f
 
         if (!$activeElection) {
             $this->flash('danger', 'No active election is available at this time.');
@@ -124,15 +142,23 @@ class VoteController extends BaseController
     public function confirmation(): void
     {
         $voteModel = new Vote();
+<<<<<<< HEAD
         $electionModel = new Election();
         $activeElection = $electionModel->getActiveElection();
+=======
+        $activeElection = $voteModel->activeElection();
+>>>>>>> ab7ee4836c683c2baa5bb345d3929ebce16bf58f
 
         if (!$activeElection) {
             $this->flash('danger', 'No active election is available at this time.');
             $this->redirect('/student/vote');
         }
 
+<<<<<<< HEAD
         $studentId = $this->resolveStudentId();
+=======
+        $studentId = (int) ($_SESSION['user']['id'] ?? 0);
+>>>>>>> ab7ee4836c683c2baa5bb345d3929ebce16bf58f
         $votes = $voteModel->confirmationDetails($studentId, (int) $activeElection['election_id']);
 
         $this->render('student/vote_confirmation', [
@@ -142,6 +168,7 @@ class VoteController extends BaseController
             'notice' => flash(),
         ]);
     }
+<<<<<<< HEAD
 
     private function resolveStudentId(): int
     {
@@ -163,4 +190,6 @@ class VoteController extends BaseController
 
         return (int) $student['student_id'];
     }
+=======
+>>>>>>> ab7ee4836c683c2baa5bb345d3929ebce16bf58f
 }
